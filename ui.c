@@ -271,9 +271,6 @@ static void draw_screen_locked(void)
 
             gr_fill(0, (row-offset)*CHAR_HEIGHT+CHAR_HEIGHT/2-1,
                     gr_fb_width(), (row-offset)*CHAR_HEIGHT+CHAR_HEIGHT/2+1);
-#else
-            row = draw_touch_menu(menu, menu_items, menu_top, menu_sel, menu_show_start);
-#endif
         }
 
         gr_color(NORMAL_TEXT_COLOR);
@@ -669,12 +666,7 @@ void ui_print(const char *fmt, ...)
     if (ui_nice) {
         struct timeval curtime;
         gettimeofday(&curtime, NULL);
-        long ms = delta_milliseconds(lastupdate, curtime);
-        if (ms < 0) {
-            lastupdate = curtime;
-            ms = NICE_INTERVAL;
-        }
-        if (ms < NICE_INTERVAL) {
+        if (delta_milliseconds(lastupdate, curtime) < NICE_INTERVAL) {
             ui_niced = 1;
             return;
         }
@@ -959,24 +951,4 @@ void ui_set_showing_back_button(int showBackButton) {
 
 int ui_get_showing_back_button() {
     return gShowBackButton;
-}
-
-int ui_get_selected_item() {
-  return menu_sel;
-}
-
-int ui_handle_key(int key, int visible) {
-#ifdef BOARD_TOUCH_RECOVERY
-    return touch_handle_key(key, visible);
-#else
-    return device_handle_key(key, visible);
-#endif
-}
-
-void ui_delete_line() {
-    pthread_mutex_lock(&gUpdateMutex);
-    text[text_row][0] = '\0';
-    text_row = (text_row - 1 + text_rows) % text_rows;
-    text_col = 0;
-    pthread_mutex_unlock(&gUpdateMutex);
 }

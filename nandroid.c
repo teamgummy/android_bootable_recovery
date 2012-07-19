@@ -63,8 +63,6 @@ static int print_and_error(const char* message) {
     return 1;
 }
 
-static int nandroid_backup_bitfield = 0;
-#define NANDROID_FIELD_DEDUPE_CLEARED_SPACE 1
 static int yaffs_files_total = 0;
 static int yaffs_files_count = 0;
 static void yaffs_callback(const char* filename)
@@ -341,31 +339,6 @@ static int unyaffs_wrapper(const char* backup_file_image, const char* backup_pat
 static int tar_extract_wrapper(const char* backup_file_image, const char* backup_path, int callback) {
     char tmp[PATH_MAX];
     sprintf(tmp, "cd $(dirname %s) ; cat %s* | tar xv ; exit $?", backup_path, backup_file_image);
-    FILE *fp = __popen(tmp, "r");
-    if (fp == NULL) {
-        ui_print("Unable to execute dedupe.\n");
-        return -1;
-    }
-
-    while (fgets(tmp, PATH_MAX, fp) != NULL) {
-        tmp[PATH_MAX - 1] = NULL;
-        if (callback)
-            yaffs_callback(tmp);
-    }
-
-    return __pclose(fp);
-}
-
-static int dedupe_extract_wrapper(const char* backup_file_image, const char* backup_path, int callback) {
-    char tmp[PATH_MAX];
-    char blob_dir[PATH_MAX];
-    strcpy(blob_dir, backup_file_image);
-    char *bd = dirname(blob_dir);
-    strcpy(blob_dir, bd);
-    bd = dirname(blob_dir);
-    strcpy(blob_dir, bd);
-    bd = dirname(blob_dir);
-    sprintf(tmp, "dedupe x %s %s/blobs %s; exit $?", backup_file_image, bd, backup_path);
 
     char path[PATH_MAX];
     FILE *fp = __popen(tmp, "r");
