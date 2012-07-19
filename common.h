@@ -154,4 +154,6 @@ typedef struct {
 // fopen a file, mounting volumes and making parent dirs as necessary.
 FILE* fopen_path(const char *path, const char *mode);
 
+int ui_get_selected_item();
+
 #endif  // RECOVERY_COMMON_H

@@ -247,6 +247,7 @@ static void draw_screen_locked(void)
         int total_rows = gr_fb_height() / CHAR_HEIGHT;
         int i = 0;
         int j = 0;
+        int offset = 0;         // offset of separating bar under menus
         int row = 0;            // current row that we are drawing on
         if (show_menu) {
             gr_color(MENU_TEXT_COLOR);
@@ -284,6 +285,12 @@ static void draw_screen_locked(void)
 
             gr_fill(0, (row-offset)*CHAR_HEIGHT+CHAR_HEIGHT/2-1,
                     gr_fb_width(), (row-offset)*CHAR_HEIGHT+CHAR_HEIGHT/2+1);
+<<<<<<< HEAD
+=======
+#else
+            row = draw_touch_menu(menu, menu_items, menu_top, menu_sel, menu_show_start);
+#endif
+>>>>>>> parent of 85e16a0... fix a bunch of off by one errors. disable display toggle.
         }
 
         gr_color(NORMAL_TEXT_COLOR);
@@ -747,10 +754,13 @@ int ui_start_menu(char** headers, char** items, int initial_selection) {
             menu[i][MENU_MAX_COLS-1] = '\0';
         }
 
-        if (gShowBackButton && !ui_root_menu) {
+        if (gShowBackButton && ui_menu_level > 0) {
             strcpy(menu[i], " - +++++Go Back+++++");
             ++i;
         }
+        
+        strcpy(menu[i], " ");
+        ++i;
 
         menu_items = i - menu_top;
         show_menu = 1;
@@ -758,7 +768,7 @@ int ui_start_menu(char** headers, char** items, int initial_selection) {
         update_screen_locked();
     }
     pthread_mutex_unlock(&gUpdateMutex);
-    if (gShowBackButton && !ui_root_menu) {
+    if (gShowBackButton && ui_menu_level > 0) {
         return menu_items - 1;
     }
     return menu_items;
@@ -771,8 +781,8 @@ int ui_menu_select(int sel) {
         old_sel = menu_sel;
         menu_sel = sel;
 
-        if (menu_sel < 0) menu_sel = menu_items + menu_sel;
-        if (menu_sel >= menu_items) menu_sel = menu_sel - menu_items;
+        if (menu_sel < 0) menu_sel = menu_items-1 + menu_sel;
+        if (menu_sel >= menu_items-1) menu_sel = menu_sel - menu_items+1;
 
 
         if (menu_sel < menu_show_start && menu_show_start > 0) {
@@ -961,4 +971,29 @@ void ui_set_showing_back_button(int showBackButton) {
 
 int ui_get_showing_back_button() {
     return gShowBackButton;
+}
+
+int ui_get_selected_item() {
+  return menu_sel;
+}
+
+int ui_handle_key(int key, int visible) {
+#ifdef BOARD_TOUCH_RECOVERY
+    return touch_handle_key(key, visible);
+#else
+    return device_handle_key(key, visible);
+#endif
+}
+
+void ui_delete_line() {
+    pthread_mutex_lock(&gUpdateMutex);
+    text[text_row][0] = '\0';
+    text_row = (text_row - 1 + text_rows) % text_rows;
+    text_col = 0;
+    pthread_mutex_unlock(&gUpdateMutex);
+}
+
+void ui_increment_frame() {
+    gInstallingFrame =
+        (gInstallingFrame + 1) % ui_parameters.installing_frames;
 }

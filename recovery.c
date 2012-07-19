@@ -59,7 +59,7 @@ static const char *LOG_FILE = "/cache/recovery/log";
 static const char *LAST_LOG_FILE = "/cache/recovery/last_log";
 static const char *CACHE_ROOT = "/cache";
 static const char *SDCARD_ROOT = "/sdcard";
-static int allow_display_toggle = 0;
+static int allow_display_toggle = 1;
 static int poweroff = 0;
 static const char *SDCARD_PACKAGE_FILE = "/sdcard/update.zip";
 static const char *TEMPORARY_LOG_FILE = "/tmp/recovery.log";
@@ -431,6 +431,7 @@ get_menu_selection(char** headers, char** items, int menu_only,
     // accidentally trigger menu items.
     ui_clear_key_queue();
     
+    ++ui_menu_level;
     int item_count = ui_start_menu(headers, items, initial_selection);
     int selected = initial_selection;
     int chosen_item = -1;
@@ -470,8 +471,9 @@ get_menu_selection(char** headers, char** items, int menu_only,
                     break;
                 case SELECT_ITEM:
                     chosen_item = selected;
-                    if (ui_is_showing_back_button()) {
-                        if (chosen_item == item_count) {
+                    if (ui_get_showing_back_button()) {
+                        if (chosen_item == item_count-1) {
+                            --ui_menu_level;
                             chosen_item = GO_BACK;
                         }
                     }
@@ -479,6 +481,7 @@ get_menu_selection(char** headers, char** items, int menu_only,
                 case NO_ACTION:
                     break;
                 case GO_BACK:
+                    --ui_menu_level;
                     chosen_item = GO_BACK;
                     break;
             }
@@ -682,8 +685,6 @@ wipe_data(int confirm) {
     ui_print("Data wipe complete.\n");
 }
 
-int ui_menu_level = 1;
-int ui_root_menu = 0;
 static void
 prompt_and_wait() {
     char** headers = prepend_title((const char**)MENU_HEADERS);
@@ -692,14 +693,10 @@ prompt_and_wait() {
         finish_recovery(NULL);
         ui_reset_progress();
         
-        ui_root_menu = 1;
-        // ui_menu_level is a legacy variable that i am keeping around to prevent build breakage.
-        ui_menu_level = 0;
-        // allow_display_toggle = 1;
+        ui_menu_level = -1;
+        allow_display_toggle = 1;
         int chosen_item = get_menu_selection(headers, MENU_ITEMS, 0, 0);
-        ui_menu_level = 1;
-        ui_root_menu = 0;
-        // allow_display_toggle = 0;
+        allow_display_toggle = 0;
 
         // device-specific code may take some action here.  It may
         // return one of the core actions handled in the switch
