@@ -63,11 +63,9 @@ static int print_and_error(const char* message) {
     return 1;
 }
 
-static int nandroid_backup_bitfield = 0;
-#define NANDROID_FIELD_DEDUPE_CLEARED_SPACE 1
-static int nandroid_files_total = 0;
-static int nandroid_files_count = 0;
-static void nandroid_callback(const char* filename)
+static int yaffs_files_total = 0;
+static int yaffs_files_count = 0;
+static void yaffs_callback(const char* filename)
 {
     if (filename == NULL)
         return;
@@ -116,50 +114,7 @@ static int tar_compress_wrapper(const char* backup_path, const char* backup_file
 
     FILE *fp = __popen(tmp, "r");
     if (fp == NULL) {
-        ui_print("Unable to execute dedupe.\n");
-        return -1;
-    }
-
-    while (fgets(tmp, PATH_MAX, fp) != NULL) {
-        tmp[PATH_MAX - 1] = NULL;
-        if (callback)
-            nandroid_callback(tmp);
-    }
-
-    return __pclose(fp);
-}
-
-static int dedupe_compress_wrapper(const char* backup_path, const char* backup_file_image, int callback) {
-    char tmp[PATH_MAX];
-    char blob_dir[PATH_MAX];
-    strcpy(blob_dir, backup_file_image);
-    char *d = dirname(blob_dir);
-    strcpy(blob_dir, d);
-    d = dirname(blob_dir);
-    strcpy(blob_dir, d);
-    d = dirname(blob_dir);
-    strcpy(blob_dir, d);
-    strcat(blob_dir, "/blobs");
-
-    if (!(nandroid_backup_bitfield & NANDROID_FIELD_DEDUPE_CLEARED_SPACE)) {
-        nandroid_backup_bitfield |= NANDROID_FIELD_DEDUPE_CLEARED_SPACE;
-        char base_dir[PATH_MAX];
-        strcpy(base_dir, backup_file_image);
-        d = dirname(base_dir);
-        strcpy(base_dir, d);
-        d = dirname(base_dir);
-        strcpy(base_dir, d);
-        ui_print("Freeing space...\n");
-        sprintf(tmp, "dedupe gc %s $(find %s -name '*.dup')", blob_dir, base_dir);
-        // ui_print("%s\n", tmp);
-        __system(tmp);
-    }
-
-    sprintf(tmp, "dedupe c %s %s %s.dup %s", backup_path, blob_dir, backup_file_image, strcmp(backup_path, "/data") == 0 && is_data_media() ? "./media" : "");
-
-    FILE *fp = __popen(tmp, "r");
-    if (fp == NULL) {
-        ui_print("Unable to execute dedupe.\n");
+        ui_print("Unable to execute tar.\n");
         return -1;
     }
 
@@ -185,15 +140,22 @@ static nandroid_backup_handler get_backup_handler(const char *backup_path) {
     }
 
     if (strcmp(backup_path, "/data") == 0 && is_data_media()) {
-        return dedupe_compress_wrapper;
+        return tar_compress_wrapper;
     }
 
-    // cwr5, we prefer dedupe for everything except yaffs2
+    // cwr5, we prefer tar for everything except yaffs2
     if (strcmp("yaffs2", mv->filesystem) == 0) {
         return mkyaffs2image_wrapper;
     }
 
-    return dedupe_compress_wrapper;
+    char str[255];
+    char* partition;
+    property_get("ro.cwm.prefer_tar", str, "true");
+    if (strcmp("true", str) != 0) {
+        return mkyaffs2image_wrapper;
+    }
+
+    return tar_compress_wrapper;
 }
 
 
@@ -203,7 +165,7 @@ int nandroid_backup_partition_extended(const char* backup_path, const char* moun
 
     struct stat file_info;
     int callback = stat("/sdcard/clockworkmod/.hidenandroidprogress", &file_info) != 0;
-
+    
     ui_print("Backing up %s...\n", name);
     if (0 != (ret = ensure_path_mounted(mount_point) != 0)) {
         ui_print("Can't mount %s!\n", mount_point);
@@ -263,7 +225,6 @@ int nandroid_backup_partition(const char* backup_path, const char* root) {
 
 int nandroid_backup(const char* backup_path)
 {
-    nandroid_backup_bitfield = 0;
     ui_set_background(BACKGROUND_ICON_INSTALLING);
     
     if (ensure_path_mounted(backup_path) != 0) {
@@ -382,36 +343,11 @@ static int unyaffs_wrapper(const char* backup_file_image, const char* backup_pat
 static int tar_extract_wrapper(const char* backup_file_image, const char* backup_path, int callback) {
     char tmp[PATH_MAX];
     sprintf(tmp, "cd $(dirname %s) ; cat %s* | tar xv ; exit $?", backup_path, backup_file_image);
-    FILE *fp = __popen(tmp, "r");
-    if (fp == NULL) {
-        ui_print("Unable to execute dedupe.\n");
-        return -1;
-    }
-
-    while (fgets(tmp, PATH_MAX, fp) != NULL) {
-        tmp[PATH_MAX - 1] = NULL;
-        if (callback)
-            nandroid_callback(tmp);
-    }
-
-    return __pclose(fp);
-}
-
-static int dedupe_extract_wrapper(const char* backup_file_image, const char* backup_path, int callback) {
-    char tmp[PATH_MAX];
-    char blob_dir[PATH_MAX];
-    strcpy(blob_dir, backup_file_image);
-    char *bd = dirname(blob_dir);
-    strcpy(blob_dir, bd);
-    bd = dirname(blob_dir);
-    strcpy(blob_dir, bd);
-    bd = dirname(blob_dir);
-    sprintf(tmp, "dedupe x %s %s/blobs %s; exit $?", backup_file_image, bd, backup_path);
 
     char path[PATH_MAX];
     FILE *fp = __popen(tmp, "r");
     if (fp == NULL) {
-        ui_print("Unable to execute dedupe.\n");
+        ui_print("Unable to execute tar.\n");
         return -1;
     }
 
@@ -487,12 +423,6 @@ int nandroid_restore_partition_extended(const char* backup_path, const char* mou
             if (0 == (ret = statfs(tmp, &file_info))) {
                 backup_filesystem = filesystem;
                 restore_handler = tar_extract_wrapper;
-                break;
-            }
-            sprintf(tmp, "%s/%s.%s.dup", backup_path, name, filesystem);
-            if (0 == (ret = statfs(tmp, &file_info))) {
-                backup_filesystem = filesystem;
-                restore_handler = dedupe_extract_wrapper;
                 break;
             }
             i++;
