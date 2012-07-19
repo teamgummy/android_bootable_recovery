@@ -685,6 +685,7 @@ wipe_data(int confirm) {
     ui_print("Data wipe complete.\n");
 }
 
+int ui_root_menu = 0;
 static void
 prompt_and_wait() {
     char** headers = prepend_title((const char**)MENU_HEADERS);
@@ -693,10 +694,11 @@ prompt_and_wait() {
         finish_recovery(NULL);
         ui_reset_progress();
         
-        ui_menu_level = -1;
-        allow_display_toggle = 1;
+        ui_root_menu = 1;
+        // allow_display_toggle = 1;
         int chosen_item = get_menu_selection(headers, MENU_ITEMS, 0, 0);
-        allow_display_toggle = 0;
+        ui_root_menu = 0;
+        // allow_display_toggle = 0;
 
         // device-specific code may take some action here.  It may
         // return one of the core actions handled in the switch
